@@ -199,5 +199,6 @@ def delete_reader(reader_id):
     finally:
         conn.close()
 
+
 if __name__ == '__main__':
     app.run(debug=True)
