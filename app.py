@@ -142,5 +142,62 @@ def add_reader():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/readers', methods=['GET'])
+def get_readers():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM reader')
+        rows = cursor.fetchall()
+        
+        readers = []
+        for row in rows:
+            readers.append({
+                "id": row["id"],
+                "firstName": row["first_name"],
+                "lastName": row["last_name"],
+                "patronymic": row["patronymic"],
+                "birthdate": row["date_birth"],
+                "phone": row["contact"]
+            })
+        
+        return jsonify(readers)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@app.route('/api/readers/<int:reader_id>', methods=['DELETE'])
+def delete_reader(reader_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Проверяем, есть ли такой читатель в базе
+        cursor.execute('SELECT * FROM reader WHERE id = ?', (reader_id,))
+        reader = cursor.fetchone()
+        
+        if not reader:
+            return jsonify({"error": "Читатель не найден"}), 404
+        
+        # Удаляем читателя из базы
+        cursor.execute('DELETE FROM reader WHERE id = ?', (reader_id,))
+        conn.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "Читатель успешно удалён"
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     app.run(debug=True)
