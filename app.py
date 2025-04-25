@@ -199,6 +199,198 @@ def delete_reader(reader_id):
     finally:
         conn.close()
 
+@app.route('/api/readers/<int:reader_id>', methods=['GET'])
+def get_reader(reader_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Устанавливаем формат строки как Row для работы с именованными столбцами
+        cursor = conn.cursor()
+        
+        # Выполняем запрос для получения данных о читателе по ID
+        cursor.execute('SELECT * FROM reader WHERE id = ?', (reader_id,))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return jsonify({"error": "Читатель не найден"}), 404
+        
+        # Формируем ответ с данными читателя
+        reader = {
+            "id": row["id"],
+            "firstName": row["first_name"],
+            "lastName": row["last_name"],
+            "patronymic": row["patronymic"],
+            "birthdate": row["date_birth"],
+            "phone": row["contact"]
+        }
+        
+        return jsonify(reader)  # Возвращаем информацию о читателе в формате JSON
+        
+    except Exception as e:
+        # В случае ошибки возвращаем сообщение об ошибке
+        return jsonify({"error": str(e)}), 500
+        
+    finally:
+        conn.close()
+
+
+
+
+@app.route('/api/books', methods=['GET'])
+def get_books():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT 
+                b.id, 
+                b.name, 
+                b.year, 
+                b.quantity, 
+                b.price,
+                b.publishing_house,
+                a.first_name || ' ' || a.last_name AS author,
+                g.name AS genre
+            FROM book b
+            LEFT JOIN author a ON b.author_id = a.id
+            LEFT JOIN genre g ON b.genre_id = g.id
+        ''')
+
+        books = cursor.fetchall()
+        conn.close()
+
+        books_list = []
+        for book in books:
+            print(dict(book))  # <== временная отладка
+            books_list.append({
+                "id": book["id"],
+                "name": book["name"],
+                "author": book["author"] or "—",
+                "genre": book["genre"] or "—",
+                "year": book["year"],
+                "quantity": book["quantity"],
+                "price": book["price"],
+                "publishing_house": book["publishing_house"]
+            })
+
+        return jsonify(books_list)
+
+    except Exception as e:
+        print("Ошибка:", e)
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/books', methods=['POST'])
+def add_book():
+    try:
+        data = request.get_json()
+
+        required_fields = ['name', 'year', 'quantity', 'price', 'author_id', 'genre_id', 'publishing_house']
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": "Не заполнены обязательные поля"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO book 
+            (name, year, quantity, price, author_id, genre_id, publishing_house)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data['name'],
+            data['year'],
+            data['quantity'],
+            data['price'],
+            data['author_id'],
+            data['genre_id'],
+            data['publishing_house']
+        ))
+
+        conn.commit()
+        book_id = cursor.lastrowid
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Книга успешно добавлена",
+            "bookId": book_id
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/books/<int:book_id>', methods=['PUT'])
+def update_book(book_id):
+    try:
+        data = request.get_json()
+
+        required_fields = ['name', 'year', 'quantity', 'price', 'author_id', 'genre_id', 'publishing_house']
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": "Не заполнены обязательные поля"}), 400
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Проверяем, существует ли книга
+        cursor.execute('SELECT * FROM book WHERE id = ?', (book_id,))
+        if cursor.fetchone() is None:
+            return jsonify({"error": "Книга не найдена"}), 404
+
+        # Обновляем книгу
+        cursor.execute('''
+            UPDATE book
+            SET name = ?, year = ?, quantity = ?, price = ?, author_id = ?, genre_id = ?, publishing_house = ?
+            WHERE id = ?
+        ''', (
+            data['name'],
+            data['year'],
+            data['quantity'],
+            data['price'],
+            data['author_id'],
+            data['genre_id'],
+            data['publishing_house'],
+            book_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Книга успешно обновлена"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/books/<int:book_id>', methods=['DELETE'])
+def delete_book(book_id):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Проверяем, существует ли книга с таким ID
+        cursor.execute('SELECT * FROM book WHERE id = ?', (book_id,))
+        book = cursor.fetchone()
+
+        if not book:
+            return jsonify({"error": "Книга не найдена"}), 404
+
+        # Удаляем книгу из базы данных
+        cursor.execute('DELETE FROM book WHERE id = ?', (book_id,))
+        conn.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Книга успешно удалена"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        conn.close()
+
 
 if __name__ == '__main__':
     app.run(debug=True)

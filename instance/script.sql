@@ -103,3 +103,4 @@ CREATE TABLE IF NOT EXISTS `given_book` (
   FOREIGN KEY (`employee_id`) REFERENCES `employee` (`id`),
   FOREIGN KEY (`book_id`) REFERENCES `book` (`id`)
 );
+
